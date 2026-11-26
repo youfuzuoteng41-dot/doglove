@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ホラー・ウクレレ譜ジェネレーター</title>
+<style>
+:root{--bg:#fff6e5;--dot:#f6dfbd;--fg:#5b3a29;--mut:#9a7b66;--accent:#f08a4b;--accent-fg:#fff;--card:#ffffff;--bd:#f3cf9f;--field:#fffaf0;--btn:#ffe3c2;--btnh:#ffd09a;color-scheme:light dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#2b1f18;--dot:#35271e;--fg:#f6e6d4;--mut:#c2a48c;--accent:#ffa866;--accent-fg:#3b2314;--card:#3a2a20;--bd:#5a4130;--field:#2f2219;--btn:#4d3626;--btnh:#634631}}
+:root[data-theme="dark"]{--bg:#2b1f18;--dot:#35271e;--fg:#f6e6d4;--mut:#c2a48c;--accent:#ffa866;--accent-fg:#3b2314;--card:#3a2a20;--bd:#5a4130;--field:#2f2219;--btn:#4d3626;--btnh:#634631}
+html,body{margin:0;background-color:var(--bg);color:var(--fg);font-family:"Hiragino Maru Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif}
+body{max-width:720px;margin:0 auto;padding:24px 16px 40px;background-image:radial-gradient(var(--dot) 18%,transparent 20%);background-size:26px 26px}
+header{text-align:center;margin-bottom:18px}
+h1{font-size:1.45rem;color:var(--accent);margin:0 0 6px;letter-spacing:.04em}
+.dog{display:inline-block;font-size:2.2rem;vertical-align:middle;animation:wag 1.6s ease-in-out infinite;transform-origin:50% 90%}
+@keyframes wag{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+@media (prefers-reduced-motion:reduce){.dog{animation:none}}
+.sub{color:var(--mut);font-size:.9rem}
+.card{position:relative;background:var(--card);border:3px solid var(--bd);border-radius:28px;padding:18px 16px;box-shadow:0 6px 0 var(--bd)}
+.card::before{content:"\1F43E";position:absolute;top:-16px;right:18px;font-size:1.6rem;background:var(--bg);border-radius:50%;padding:0 4px}
+.meta{color:var(--mut);font-size:.9rem;margin-bottom:10px}
+.scroll{overflow-x:auto;background:var(--field);border:2px dashed var(--bd);border-radius:16px;padding:12px}
+pre{margin:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem;line-height:1.4;white-space:pre;color:var(--fg)}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 8px;justify-content:center}
+button,select{background:var(--btn);color:var(--fg);border:2px solid var(--bd);border-radius:999px;padding:10px 18px;font-size:1rem;font-family:inherit;cursor:pointer;box-shadow:0 3px 0 var(--bd)}
+button:hover,select:hover{background:var(--btnh)}
+button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--bd)}
+#gen{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:bold}
+#msg{color:var(--mut);font-size:.85rem;min-height:1.2em;text-align:center}
+.foot{text-align:center;color:var(--mut);margin-top:18px;letter-spacing:.3em}
+</style>
+</head>
+<body>
+<header><h1><span class="dog">🐶</span> わんわん ウクレレ譜</h1>
+<div class="sub">ランダムに2小節のソロ弾き(単音のみ)・標準チューニング (G-C-E-A)</div></header>
+<div class="card">
+  <div class="meta" id="meta"></div>
+  <div class="scroll"><pre id="tab"></pre></div>
+</div>
+<div class="btns">
+  <select id="mode" aria-label="モード"><option value="horror">👻 ホラー</option><option value="flamenco">💃 フラメンコ</option><option value="healing" selected>🐕 犬のヒーリング</option></select>
+  <button id="gen">🦴 つくる!</button>
+  <button id="play">🎵 再生</button>
+  <button id="dl">💾 txt保存</button>
+  <button id="cp">📋 コピー</button>
+</div>
+<div id="msg"></div>
+<div class="foot">🐾 🐾 🐾</div>
+
+<script>
+// 弦(上から A E C G)の開放弦 MIDI番号
+const STRINGS=[{n:'A',m:69},{n:'E',m:64},{n:'C',m:60},{n:'G',m:67}];
+const NOTE=['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+// 不穏なスケール
+const MODES={
+  'フリジアン':[0,1,3,5,7,8,10],
+  'ロクリアン':[0,1,3,5,6,8,10],
+  'ハーモニックマイナー':[0,2,3,5,7,8,11],
+  'ディミニッシュ(W-H)':[0,2,3,5,6,8,9,11],
+  'クロマチック(半音)':[0,1,2,3,4,5,6,7,8,9,10,11]
+};
+const SLOTS=16, PER_BAR=8, MAXFRET=10;
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+let cur=null;
+
+function candidates(pcs){
+  const c=[];
+  STRINGS.forEach((s,si)=>{for(let f=0;f<=MAXFRET;f++){const p=s.m+f;if(pcs.has(p%12))c.push({si,f,p});}});
+  return c;
+}
+function pick(cands,prev){
+  if(prev==null)return rnd(cands);
+  // 直前の音に近い音ほど選ばれやすい(半音・全音の蠢きを強調)
+  const w=cands.map(x=>1/(1+Math.abs(x.p-prev))**1.5);
+  let r=Math.random()*w.reduce((a,b)=>a+b,0);
+  for(let i=0;i<cands.length;i++){r-=w[i];if(r<=0)return cands[i];}
+  return cands[0];
+}
+// ---- フラメンコ: フリジアン・ドミナント + アンダルシア進行 (Am-G-F-E) ----
+// [弦index, フレット] を G→C→E→A の順(低→高)に並べる
+const CHORDS={Am:[[3,2],[2,0],[1,0],[0,0]],G:[[3,0],[2,2],[1,3],[0,2]],F:[[3,2],[2,0],[1,1],[0,0]],E:[[3,4],[2,4],[1,4],[0,7]]};
+const PROG=['Am','G','F','E'];
+const RHYTHMS=[[1,0,1,1],[1,1,0,1],[1,0,0,1],[1,1,1,1],[1,0,1,0],[1,1,0,0]];
+function chordNotes(name){return CHORDS[name].map(([si,f])=>({si,f,p:STRINGS[si].m+f}));}
+// ソロ弾き用: 各コードのルート音を低めの弦(C・G線)の単音で鳴らす
+const ROOTS={Am:9,G:7,F:5,E:4};
+function anchor(name){return rnd(candidates(new Set([ROOTS[name]])).filter(x=>x.si>=2&&x.f<=7));}
+function generateFlamenco(){
+  const pcs=new Set([0,1,4,5,7,8,10].map(i=>(i+9)%12));
+  const mel=candidates(pcs).filter(x=>x.f<=7);
+  const slots=[];let prev=null;
+  PROG.forEach((name,h)=>{
+    const pat=rnd(RHYTHMS);
+    for(let k=0;k<4;k++){
+      const i=h*4+k;
+      let on=pat[k];
+      if(k===0||i===SLOTS-1)on=1;
+      if(on){const m=(k===0||i===SLOTS-1)?anchor(name):pick(mel,prev);prev=m.p;slots.push([m]);}
+      else if(Math.random()<0.55){const m=pick(mel,prev);prev=m.p;slots.push([m]);}
+      else slots.push([]);
+    }
+  });
+  return {kind:'flamenco',title:'FLAMENCO UKULELE',modeName:'フリジアン・ドミナント',root:9,slots,bpm:rnd([88,96,104,112])};
+}
+// ---- 犬用ヒーリング: Cメジャーペンタトニック・ゆったり・子守歌風 ----
+function generateHealing(){
+  const cands=candidates(new Set([0,2,4,7,9])).filter(x=>x.f<=7);
+  const anchors=cands.filter(x=>x.p%12===0||x.p%12===7);
+  const roots=cands.filter(x=>x.p%12===0);
+  const slots=[];let prev=null;
+  for(let i=0;i<SLOTS;i++){
+    const last=i===SLOTS-1;
+    if(!last&&i%4!==0&&Math.random()<0.3){slots.push([]);continue;} // 余韻
+    let n;
+    if(last)n=rnd(roots);
+    else if(i%8===0)n=rnd(anchors);
+    else n=pick(cands.filter(x=>x.p!==prev),prev);
+    prev=n.p;slots.push([n]);
+  }
+  return {kind:'healing',title:'DOG HEALING UKULELE',modeName:'メジャー・ペンタトニック',root:0,slots,bpm:rnd([54,60,66])};
+}
+function generate(){
+  const m=document.getElementById('mode').value;
+  return m==='flamenco'?generateFlamenco():m==='healing'?generateHealing():generateHorror();
+}
+
+function generateHorror(){
+  const modeName=rnd(Object.keys(MODES));
+  const root=Math.floor(Math.random()*12);
+  const pcs=new Set(MODES[modeName].map(i=>(i+root)%12));
+  const cands=candidates(pcs);
+  const slots=[];let prev=null;
+  for(let i=0;i<SLOTS;i++){
+    const last=i===SLOTS-1;
+    const r=Math.random();
+    if(!last&&r<0.2){slots.push([]);continue;} // 休符(間)
+    const a=pick(cands,prev);
+    const notes=[a]; // ソロ弾き: 単音のみ
+    // 終止は根音に落とす
+    if(last){
+      const rt=cands.filter(x=>x.p%12===root);
+      if(rt.length)notes[0]=rnd(rt);
+    }
+    prev=notes[0].p;slots.push(notes);
+  }
+  return {kind:'horror',title:'HORROR UKULELE',modeName,root,slots,bpm:rnd([50,56,60,66,72])};
+}
+function render(t){
+  const lines=STRINGS.map(s=>s.n+'|');
+  for(let i=0;i<SLOTS;i++){
+    STRINGS.forEach((_,si)=>{
+      const hit=t.slots[i].find(n=>n.si===si);
+      lines[si]+=(hit?String(hit.f):'-').padEnd(3,'-');
+    });
+    if(i%PER_BAR===PER_BAR-1)for(let si=0;si<4;si++)lines[si]+='|';
+  }
+  return lines.join('\n');
+}
+function header(t){
+  if(t.kind==='healing')return `Key: C ${t.modeName} / ♩=${t.bpm} / 4/4 / ゆったり・やさしい子守歌風`;
+  if(t.kind==='flamenco')return `Key: A ${t.modeName} / ${PROG.join('-')} (アンダルシア進行) / ♩=${t.bpm} / 4/4 / 2小節`;
+  return `Key: ${NOTE[t.root]} ${t.modeName} / ♩=${t.bpm} / 4/4 / 8分音符×8×2小節`;
+}
+function fullText(){
+  return `${cur.title} (G-C-E-A)\n${header(cur)}\n\n${render(cur)}\n\n(数字=フレット, -=休み / 全モード ソロ弾き=単音のみ)\n`;
+}
+function show(){
+  cur=generate();
+  document.getElementById('meta').textContent=header(cur);
+  document.getElementById('tab').textContent=render(cur);
+}
+
+// 再生
+let actx=null;
+function play(){
+  actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  const step=60/cur.bpm/2,t0=actx.currentTime+0.1;
+  cur.slots.forEach((ns,i)=>ns.forEach(n=>{
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=cur.kind==='healing'?'sine':'triangle';o.frequency.value=440*Math.pow(2,(n.p-69)/12);
+    const t=t0+i*step;
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.28,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,t+step*(cur.kind==='healing'?3.2:1.8));
+    o.connect(g).connect(actx.destination);o.start(t);o.stop(t+step*3.5);
+  }));
+}
+const msg=t=>document.getElementById('msg').textContent=t;
+
+async function save(){
+  const name='horror-ukulele-'+Date.now()+'.txt';
+  try{
+    const d=window.claude&&await claude.use('downloads');
+    if(d){await d.save({filename:name,data:fullText()});msg('保存しました');return;}
+  }catch(e){if(e&&e.code==='declined'){msg('保存をキャンセルしました');return;}}
+  // 通常のブラウザ向け(ローカルでHTMLを開いた場合)
+  try{
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([fullText()],{type:'text/plain;charset=utf-8'}));
+    a.download=name;document.body.appendChild(a);a.click();a.remove();msg('保存しました');
+  }catch(e){msg('保存できませんでした。「コピー」をお使いください');}
+}
+async function copy(){
+  try{await navigator.clipboard.writeText(fullText());msg('コピーしました');}
+  catch(e){
+    const ta=document.createElement('textarea');ta.value=fullText();document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');msg('コピーしました');}catch(_){msg('コピーできませんでした');}
+    ta.remove();
+  }
+}
+document.getElementById('gen').onclick=()=>{show();msg('');};
+document.getElementById('play').onclick=play;
+document.getElementById('dl').onclick=save;
+document.getElementById('mode').onchange=()=>{show();msg('');};
+document.getElementById('cp').onclick=copy;
+show();
+</script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>犬笛ウクレレ</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#fbf6ec;--fg:#2b2118;--wood:#c98a4b;--wood2:#b87638;--fret:#8d6b45;--str:#e9e4d8;--accent:#d9480f;--card:#fff;--mut:#7a6a58}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1713;--fg:#f1e8da;--wood:#8a5a2c;--wood2:#744a22;--fret:#c9a574;--str:#d8d2c4;--accent:#ff8a4c;--card:#2a231c;--mut:#a89884}}
+:root[data-theme="dark"]{--bg:#1c1713;--fg:#f1e8da;--wood:#8a5a2c;--wood2:#744a22;--fret:#c9a574;--str:#d8d2c4;--accent:#ff8a4c;--card:#2a231c;--mut:#a89884}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;padding:16px;max-width:980px;margin-inline:auto}
+h1{font-size:1.4rem;margin:.2em 0}
+p.sub{color:var(--mut);margin:0 0 12px;font-size:.9rem}
+.warn{background:var(--card);border-left:4px solid var(--accent);padding:8px 12px;border-radius:6px;font-size:.85rem;margin-bottom:14px}
+.panel{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;background:var(--card);padding:10px 14px;border-radius:10px;margin-bottom:14px}
+label{font-size:.85rem;display:flex;align-items:center;gap:6px}
+select,button{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--fret);background:var(--bg);color:var(--fg);cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.wrap{overflow-x:auto;padding-bottom:6px}
+#neck{display:grid;grid-template-columns:56px repeat(12,minmax(54px,1fr));min-width:760px;background:linear-gradient(var(--wood),var(--wood2));border-radius:10px;touch-action:none;user-select:none;-webkit-user-select:none}
+.cell{height:52px;position:relative;border-right:3px solid var(--fret);cursor:pointer}
+.cell.open{border-right:6px solid var(--fret);background:rgba(0,0,0,.18);border-radius:10px 0 0 10px}
+.cell::before{content:"";position:absolute;left:0;right:0;top:50%;height:var(--t);background:var(--str);transform:translateY(-50%);box-shadow:0 1px 2px rgba(0,0,0,.4)}
+.cell:hover{background:rgba(255,255,255,.12)}
+.cell.hit::before{animation:vib .35s ease-out}
+@keyframes vib{0%{transform:translateY(-50%) scaleY(4)}25%{transform:translateY(-30%) scaleY(3)}50%{transform:translateY(-70%) scaleY(2)}100%{transform:translateY(-50%) scaleY(1)}}
+.cell .name{position:absolute;left:4px;top:2px;font-size:.62rem;color:#fff;opacity:.75;z-index:1;pointer-events:none}
+.cell.open .name{font-size:.8rem;opacity:1;font-weight:bold}
+.cell.dot::after{content:"";position:absolute;left:50%;top:50%;width:20px;height:20px;border-radius:50%;background:var(--accent);transform:translate(-50%,-50%);z-index:2;box-shadow:0 0 0 2px #fff6;pointer-events:none}
+#marks{display:grid;grid-template-columns:56px repeat(12,minmax(54px,1fr));min-width:760px;font-size:.72rem;color:var(--mut);text-align:center;margin-top:4px}
+#status{margin-top:12px;font-family:ui-monospace,monospace;font-size:.95rem;min-height:1.5em}
+.chords{display:flex;gap:8px;flex-wrap:wrap}
+.cell.target{background:rgba(255,224,102,.5);box-shadow:inset 0 0 0 3px #ffe066;animation:pulse 1s ease-in-out infinite;z-index:1}
+.cell.next{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
+@keyframes pulse{50%{background:rgba(255,224,102,.15)}}
+#score{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 100%}
+.chip{padding:3px 9px;border-radius:999px;border:1px solid var(--fret);font-size:.8rem}
+.chip.done{opacity:.4;text-decoration:line-through}
+.chip.cur{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:bold}
+#msg{font-size:.9rem;color:var(--accent);min-height:1.3em;flex:1 1 100%}
+</style>
+</head>
+<body>
+<h1>🐕 犬笛ウクレレ</h1>
+<p class="sub">ウクレレの音程関係をそのまま超高音に移調した、ほぼ人間には聞こえない演奏シミュレーター</p>
+<div class="warn">⚠️ 犬や猫など近くのペットが驚くことがあります。音量は小さめから始め、嫌がる様子があればやめてください。ヘッドホン不可、スピーカーの高音再生性能にも依存します。</div>
+
+<div class="panel">
+  <label>音域
+    <select id="mult">
+      <option value="1">×1（確認用・普通の音）</option>
+      <option value="16">×16（高音・人間にも聞こえる）</option>
+      <option value="32" selected>×32（犬笛）</option>
+      <option value="64">×64（超音波寄り）</option>
+    </select>
+  </label>
+  <label>音量 <input id="vol" type="range" min="1" max="100" value="15"></label>
+  <button id="strum">ジャラーン ▼</button>
+  <div class="chords" id="chords"></div>
+</div>
+
+<div class="panel">
+  <button id="gen">🎲 ヒーリング譜をランダム作成</button>
+  <button id="demo">▶ お手本を聴く</button>
+  <button id="retry">↺ 最初から</button>
+  <button id="save">📄 txtで保存</button>
+  <button id="load">📂 txtを読み込む</button>
+  <input type="file" id="file" accept=".txt,text/plain" hidden>
+  <div id="score"></div>
+  <div id="msg">光っているマスをタッチして、譜面どおりに弾こう</div>
+</div>
+
+<div class="wrap">
+  <div id="neck"></div>
+  <div id="marks"></div>
+</div>
+<div id="status">マスをクリック／ドラッグで弾けます</div>
+
+<script>
+(function(){
+  var OPEN=[392.00,261.63,329.63,440.00]; // G4 C4 E4 A4 (re-entrant)
+  var NAMES=["G","C","E","A"], TH=[2,3.5,2.5,1.5]; // 弦の太さ
+  var CH={C:[0,0,0,3],F:[2,0,1,0],G:[0,2,3,2],Am:[2,0,0,0],Dm:[2,2,1,0]};
+  var NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  var neck=document.getElementById("neck"), marks=document.getElementById("marks"),
+      status=document.getElementById("status"), multEl=document.getElementById("mult"),
+      volEl=document.getElementById("vol");
+  var ctx=null, cells=[];
+
+  function audio(){
+    if(!ctx){
+      try{ctx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:96000});}
+      catch(e){ctx=new (window.AudioContext||window.webkitAudioContext)();}
+    }
+    if(ctx.state==="suspended")ctx.resume();
+    return ctx;
+  }
+  function freq(s,f){
+    var c=audio();
+    var base=OPEN[s]*Math.pow(2,f/12)*Number(multEl.value);
+    var lim=c.sampleRate/2*0.92;
+    while(base>lim)base/=2; // 再生可能上限を超えたらオクターブ下げる
+    return base;
+  }
+  function pluck(s,f,delay){
+    var c=audio(), fr=freq(s,f), t=c.currentTime+(delay||0), v=Math.pow(Number(volEl.value)/100,2)*0.6;
+    var o=c.createOscillator(), g=c.createGain();
+    o.type="sine"; o.frequency.value=fr;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(Math.max(v,0.0002),t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+1.6);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t+1.7);
+    setTimeout(function(){flash(s,f);show(s,f,fr);},(delay||0)*1000);
+  }
+  function show(s,f,fr){
+    var n=NOTE[(Math.round(12*Math.log2(OPEN[s]/261.63))+f+120)%12];
+    status.textContent=NAMES[s]+"弦 "+(f?f+"フレット":"開放")+"（"+n+"）→ "+fr.toFixed(0)+" Hz"+
+      (fr>20000?"　🐕 人間には聞こえません":fr>15000?"　🐕 若い人だけ聞こえるかも":"　（人間にも聞こえる帯域）")+
+      "　/ サンプルレート "+ctx.sampleRate+" Hz";
+  }
+  function flash(s,f){
+    var c=cells[s][f]; c.classList.remove("hit"); void c.offsetWidth; c.classList.add("hit");
+  }
+
+  // 指板の生成
+  for(var s=0;s<4;s++){
+    cells[s]=[];
+    for(var f=0;f<=12;f++){
+      var d=document.createElement("div");
+      d.className="cell"+(f===0?" open":"");
+      d.style.setProperty("--t",TH[s]+"px");
+      d.dataset.s=s; d.dataset.f=f;
+      if(f===0){var n=document.createElement("span");n.className="name";n.textContent=NAMES[s];d.appendChild(n);}
+      neck.appendChild(d); cells[s][f]=d;
+    }
+  }
+  var lab=document.createElement("div");lab.textContent="開放";marks.appendChild(lab);
+  for(var i=1;i<=12;i++){var m=document.createElement("div");m.textContent=[3,5,7,10,12].indexOf(i)>=0?"● "+i:i;marks.appendChild(m);}
+
+  // ポインタ操作（ドラッグでストローク）
+  var down=false,last=null;
+  function hit(e){
+    var el=document.elementFromPoint(e.clientX,e.clientY);
+    if(!el||!el.classList.contains("cell")||el===last)return;
+    last=el; pluck(+el.dataset.s,+el.dataset.f); onTouch(+el.dataset.s,+el.dataset.f);
+  }
+  neck.addEventListener("pointerdown",function(e){down=true;last=null;
+    if(e.target.releasePointerCapture)try{e.target.releasePointerCapture(e.pointerId);}catch(_){}
+    hit(e);});
+  neck.addEventListener("pointermove",function(e){if(down)hit(e);});
+  window.addEventListener("pointerup",function(){down=false;last=null;});
+
+  // コード
+  var chordsEl=document.getElementById("chords"), curChord=null;
+  function showDots(fr){
+    cells.forEach(function(r){r.forEach(function(c){c.classList.remove("dot");});});
+    if(fr)fr.forEach(function(f,s){if(f>0)cells[s][f].classList.add("dot");});
+  }
+  function strum(fr,up){
+    fr=fr||[0,0,0,0];
+    var order=up?[3,2,1,0]:[0,1,2,3];
+    order.forEach(function(s,i){pluck(s,fr[s],i*0.045);});
+  }
+  Object.keys(CH).forEach(function(k){
+    var b=document.createElement("button");b.textContent=k;
+    b.onclick=function(){
+      curChord=k;showDots(CH[k]);
+      [].forEach.call(chordsEl.children,function(x){x.classList.toggle("on",x===b);});
+      strum(CH[k]);
+    };
+    chordsEl.appendChild(b);
+  });
+  var dir=false, sb=document.getElementById("strum");
+  sb.onclick=function(){
+    strum(curChord?CH[curChord]:null,dir);
+    dir=!dir; sb.textContent=dir?"ジャラーン ▲":"ジャラーン ▼";
+  };
+  // ===== ヒーリング譜 =====
+  var OM=[67,60,64,69], PENTA=[60,62,64,67,69,72,74,76];
+  var song=[], pos=0, scoreEl=document.getElementById("score"), msg=document.getElementById("msg");
+  function candidates(p){var r=[];for(var s=0;s<4;s++){var f=p-OM[s];if(f>=0&&f<=7)r.push({s:s,f:f});}return r;}
+  function genSong(){
+    var idx=Math.floor(Math.random()*4), steps=[-2,-1,-1,1,1,2], pitches=[PENTA[idx]];
+    for(var i=0;i<10;i++){
+      idx+=steps[Math.floor(Math.random()*steps.length)];
+      idx=Math.max(0,Math.min(PENTA.length-1,idx));
+      pitches.push(PENTA[idx]);
+    }
+    pitches.push(idx<4?60:72); // ドで穏やかに終止
+    var prev=0;
+    song=pitches.map(function(p){
+      var c=candidates(p),best=null,bs=1e9;
+      c.forEach(function(x){var sc=Math.abs(x.f-prev)+Math.random()*3;if(sc<bs){bs=sc;best=x;}});
+      prev=best.f; return best;
+    });
+    pos=0; render();
+    msg.textContent="新しい譜面ができました。光っているマスをタッチしてね";
+  }
+  function render(){
+    scoreEl.innerHTML="";
+    song.forEach(function(n){var c=document.createElement("span");c.className="chip";
+      c.textContent=NAMES[n.s]+"弦 "+(n.f?n.f:"開放");scoreEl.appendChild(c);});
+    mark();
+  }
+  function mark(){
+    cells.forEach(function(r){r.forEach(function(c){c.classList.remove("target","next");});});
+    [].forEach.call(scoreEl.children,function(c,i){
+      c.classList.toggle("done",i<pos);c.classList.toggle("cur",i===pos);});
+    if(pos<song.length){var n=song[pos];cells[n.s][n.f].classList.add("target");
+      if(pos+1<song.length){var m=song[pos+1];if(m.s!==n.s||m.f!==n.f)cells[m.s][m.f].classList.add("next");}}
+  }
+  function onTouch(s,f){
+    if(pos>=song.length)return;
+    var n=song[pos];
+    if(s===n.s&&f===n.f){
+      pos++; mark();
+      msg.textContent=pos>=song.length?"🎉 完奏！おつかれさま。「🎲」で新しい譜面を作れます":"その調子！（"+pos+"/"+song.length+"）";
+    }
+  }
+  document.getElementById("gen").onclick=genSong;
+  document.getElementById("retry").onclick=function(){pos=0;mark();msg.textContent="最初から。光っているマスをタッチしてね";};
+  document.getElementById("demo").onclick=function(){song.forEach(function(n,i){pluck(n.s,n.f,i*0.9);});msg.textContent="お手本を再生中…";};
+  // ===== txt出力 =====
+  function pad2(n){return ("0"+n).slice(-2);}
+  function songText(){
+    var d=new Date(), L=[];
+    L.push("犬用ヒーリングウクレレ譜");
+    L.push("作成日: "+d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()));
+    L.push("調弦: G4 C4 E4 A4（ハイG） / 音域: ×"+multEl.value+" / 目安テンポ: 約0.9秒に1音");
+    L.push("");
+    L.push("【弾く順】");
+    song.forEach(function(n,i){
+      L.push(pad2(i+1)+". "+NAMES[n.s]+"弦 "+(n.f?n.f+"フレット":"開放")+"（"+NOTE[(OM[n.s]+n.f)%12]+"）");
+    });
+    L.push("");
+    L.push("【TAB譜】（上からA・E・C・G弦）");
+    var order=[3,2,1,0], rows=order.map(function(s){return NAMES[s]+"|";});
+    song.forEach(function(n){
+      order.forEach(function(s,r){rows[r]+=("-"+(n.s===s?n.f:"")+"---").slice(0,4);});
+    });
+    rows.forEach(function(r){L.push(r+"|");});
+    return L.join("\n")+"\n";
+  }
+  var dl=null;
+  try{if(window.claude&&window.claude.use)window.claude.use("downloads").then(function(x){dl=x;}).catch(function(){});}catch(_){}
+  document.getElementById("save").onclick=function(){
+    var txt=songText();
+    if(dl){
+      dl.save({filename:"healing-ukulele-score.txt",data:txt}).then(function(){msg.textContent="譜面をtxtで保存しました";})
+        .catch(function(e){msg.textContent=(e&&e.code==="declined")?"保存をキャンセルしました":"保存できませんでした";});
+    }else{
+      try{navigator.clipboard.writeText(txt).then(function(){msg.textContent="この環境では保存できないため、譜面テキストをコピーしました";},function(){msg.textContent="保存もコピーもできませんでした";});}
+      catch(_){msg.textContent="保存もコピーもできませんでした";}
+    }
+  };
+  // ===== txt読み込み =====
+  function parseSong(t){
+    var out=[];
+    t.split(/\r?\n/).forEach(function(l){
+      var m=l.match(/^\s*\d+\.\s*([GCEA])弦\s*(?:開放|(\d+)\s*フレット)/);
+      if(!m)return;
+      var s=NAMES.indexOf(m[1]), f=m[2]?parseInt(m[2],10):0;
+      if(s>=0&&f>=0&&f<=12)out.push({s:s,f:f});
+    });
+    return out;
+  }
+  var fi=document.getElementById("file");
+  document.getElementById("load").onclick=function(){fi.click();};
+  fi.onchange=function(){
+    var file=fi.files&&fi.files[0];
+    if(!file)return;
+    var r=new FileReader();
+    r.onload=function(){
+      var txt=String(r.result), s=parseSong(txt);
+      if(!s.length){msg.textContent="譜面を読み取れませんでした。このアプリで保存したtxt（【弾く順】の形式）を選んでください";return;}
+      song=s.slice(0,64); pos=0;
+      var m=txt.match(/音域:\s*×\s*(\d+)/);
+      if(m){for(var i=0;i<multEl.options.length;i++){if(multEl.options[i].value===m[1])multEl.value=m[1];}}
+      render();
+      msg.textContent="譜面を読み込みました（"+song.length+"音）。光っているマスをタッチしてね";
+    };
+    r.onerror=function(){msg.textContent="ファイルを読み込めませんでした";};
+    r.readAsText(file);
+    fi.value="";
+  };
+  genSong();
+
+  multEl.onchange=function(){status.textContent="音域を変更："+multEl.value+"倍（次に弾いたときに反映）";};
+})();
+</script>
+</body>
+</html>
